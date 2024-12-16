@@ -1,0 +1,17 @@
+name: publish-vernemq
+
+on:
+  push:
+    branches:
+      - 2.0.1
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-pypower:
+    uses: HavocAI/github-workflows/.github/workflows/publish.yml@main
+    secrets: inherit
+    with:
+      dockerfile: ./Dockerfile.havocai
