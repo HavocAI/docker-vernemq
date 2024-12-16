@@ -1,3 +1,15 @@
+# This Dockerfile builds VerneMQ from source to create a runtime image. This
+# approach complies with VerneMQ's EULA (https://vernemq.com/end-user-license-agreement/),
+# which requires a commercial license for using their pre-built binaries or
+# container images.
+#
+# By building from source, HavocAI adheres solely to the Apache 2.0 license
+# under which the source code is licensed.
+#
+# This code is provided "as-is" without any warranties or guarantees of
+# functionality, reliability, or fitness for a particular purpose. Use it at
+# your own risk.
+
 ARG REPO=851725524691.dkr.ecr.us-east-2.amazonaws.com
 ARG VERNEMQ_VERSION_ARG="2.0.1"
 
