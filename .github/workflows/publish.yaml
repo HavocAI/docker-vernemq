@@ -10,7 +10,7 @@ permissions:
   packages: write
 
 jobs:
-  publish-pypower:
+  publish-vernemq:
     uses: HavocAI/github-workflows/.github/workflows/publish.yml@main
     secrets: inherit
     with:
