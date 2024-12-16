@@ -1,0 +1,290 @@
+name: build-images
+
+# This workflow builds images for amd64 and arm64 architectures, merges them
+# into a multi-arch image, and pushes them to both GHCR and ECR.
+
+# By default uses AWS CodeBuild runner.
+# https://us-east-2.console.aws.amazon.com/codesuite/codebuild/851725524691/projects/github-runner
+#
+# The instance image and size can be customized to fit the build requirements.
+# See: https://docs.aws.amazon.com/codebuild/latest/userguide/action-runner.html#sample-github-action-runners-update-yaml
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: Name of the image to build, this should not include the registry prefix
+        required: false
+        type: string
+        default: ${{ github.event.repository.name }}
+      runs-on-amd64:
+        description: Runner to use for the amd64 build and multi-arch push
+        required: false
+        type: string
+      runs-on-arm64:
+        description: Runner to use for the arm64 build
+        required: false
+        type: string
+      runner-prefix:
+        description: Prefix to use for the runner name, ignored if runs-on is set
+        required: false
+        type: string
+        default: codebuild-github-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+      runner-size:
+        description: Size of the runner to use for the build, ignored if runs-on is set, https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-compute-types.html
+        required: false
+        type: string
+        default: small
+      environment:
+        description: GitHub environment to use for the build
+        required: false
+        type: string
+      context:
+        description: Path to build context relative to root of repo
+        required: false
+        type: string
+        default: .
+      dockerfile:
+        description: Path to Dockerfile relative to root of repo
+        required: false
+        type: string
+        default: Dockerfile
+      args:
+        description: Build arguments to pass to Dockerfile
+        required: false
+        type: string
+      additional-tags:
+        description: |
+          Additional tags to pass to docker/metadata-action, see
+          https://github.com/docker/metadata-action?tab=readme-ov-file#tags-input
+        required: false
+        type: string
+      push:
+        description: Push images to the registry
+        required: false
+        type: boolean
+        default: true
+      build-amd64:
+        description: Build the amd64 image
+        required: false
+        type: boolean
+        default: true
+      build-arm64:
+        description: Build the arm64 image
+        required: false
+        type: boolean
+        default: true
+      buildx-image:
+        description: Buildx image to use for the build
+        required: false
+        type: string
+        default: 851725524691.dkr.ecr.us-east-2.amazonaws.com/buildkit:buildx-stable-1
+
+env:
+  ECR_IMAGE: 851725524691.dkr.ecr.us-east-2.amazonaws.com/${{ inputs.name }}
+  GHCR_IMAGE: ghcr.io/havocai/${{ inputs.name }}
+
+jobs:
+  build-amd64-image:
+    if: inputs.build-amd64
+    runs-on: ${{ inputs.runs-on-amd64 || format('{0}-linux-5.0-{1}', inputs.runner-prefix, inputs.runner-size) }}
+
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Create Github App token
+        uses: actions/create-github-app-token@v1
+        id: app_token
+        with:
+          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          # owner is required, otherwise the creds will fail the checkout step
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app_token.outputs.token }}
+          submodules: recursive
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io/havocai
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-2
+          aws-access-key-id: ${{ secrets.AWS_ECR_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_ECR_SECRET }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ inputs.buildx-image }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          build-args: ${{ inputs.args }}
+          outputs: type=image,name=${{ env.ECR_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ inputs.push }}
+          cache-to: |
+            type=registry,ref=${{ env.ECR_IMAGE }}:buildcache-${{ runner.arch }},mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=${{ env.ECR_IMAGE }}:buildcache-${{ runner.arch }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ inputs.name }}-${{ runner.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build-arm64-image:
+    if: inputs.build-arm64
+    runs-on: ${{ inputs.runs-on-amd64 || format('{0}-arm-3.0-{1}', inputs.runner-prefix, inputs.runner-size) }}
+
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Create Github App token
+        uses: actions/create-github-app-token@v1
+        id: app_token
+        with:
+          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          # owner is required, otherwise the creds will fail the checkout step
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app_token.outputs.token }}
+          submodules: recursive
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io/havocai
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-2
+          aws-access-key-id: ${{ secrets.AWS_ECR_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_ECR_SECRET }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ inputs.buildx-image }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          build-args: ${{ inputs.args }}
+          outputs: type=image,name=${{ env.ECR_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ inputs.push }}
+          cache-to: |
+            type=registry,ref=${{ env.ECR_IMAGE }}:buildcache-${{ runner.arch }},mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: type=registry,ref=${{ env.ECR_IMAGE }}:buildcache-${{ runner.arch }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ inputs.name }}-${{ runner.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  push-multi-arch-image:
+    if: inputs.push
+    runs-on: ${{ inputs.runs-on-amd64 || format('{0}-linux-5.0-{1}', inputs.runner-prefix, inputs.runner-size) }}
+
+    needs:
+      - build-amd64-image
+      - build-arm64-image
+
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io/havocai
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-2
+          aws-access-key-id: ${{ secrets.AWS_ECR_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_ECR_SECRET }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ inputs.name }}-{X64,ARM64}
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ inputs.buildx-image }}
+
+      - name: Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.ECR_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+            type=sha,prefix=
+            ${{ inputs.additional-tags }}
+
+      # This merges the arch specific images into a multi-arch image. Each image
+      # build outputs its digest as an artifact, with the artifact filename
+      # being the image digest. The files are used as the inputs to imagetools.
+      - name: Create manifest and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.ECR_IMAGE }}@sha256:%s ' *)

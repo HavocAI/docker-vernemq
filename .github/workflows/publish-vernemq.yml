@@ -11,7 +11,8 @@ permissions:
 
 jobs:
   publish-vernemq:
-    uses: HavocAI/github-workflows/.github/workflows/publish.yml@main
+    uses: ./publish.yml
     secrets: inherit
     with:
+      name: vernemq-havocai
       dockerfile: ./Dockerfile.havocai
