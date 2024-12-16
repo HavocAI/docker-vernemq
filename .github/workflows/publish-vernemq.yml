@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   publish-vernemq:
-    uses: ./publish.yml
+    uses: ./.github/workflows/publish.yml
     secrets: inherit
     with:
       name: vernemq-havocai
