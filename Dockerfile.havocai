@@ -1,7 +1,8 @@
+ARG REPO=851725524691.dkr.ecr.us-east-2.amazonaws.com
 ARG VERNEMQ_VERSION_ARG="2.0.1"
 
 ## BUILDER ##
-FROM erlang:26-slim AS builder
+FROM ${REPO}/erlang:26-slim AS builder
 
 ARG VERNEMQ_VERSION_ARG
 
@@ -15,7 +16,7 @@ RUN git clone --depth=1 https://github.com/vernemq/vernemq.git --branch ${VERNEM
 
 
 ## RUNTIME ##
-FROM debian:bookworm-slim
+FROM ${REPO}/debian:bookworm-slim
 
 ARG VERNEMQ_VERSION_ARG
 
