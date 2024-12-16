@@ -92,19 +92,10 @@ jobs:
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Create Github App token
-        uses: actions/create-github-app-token@v1
-        id: app_token
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          # owner is required, otherwise the creds will fail the checkout step
-          owner: ${{ github.repository_owner }}
-
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.app_token.outputs.token }}
+          token: ${{ github.token }}
           submodules: recursive
 
       - name: Login to GHCR
@@ -162,19 +153,10 @@ jobs:
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Create Github App token
-        uses: actions/create-github-app-token@v1
-        id: app_token
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          # owner is required, otherwise the creds will fail the checkout step
-          owner: ${{ github.repository_owner }}
-
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.app_token.outputs.token }}
+          token: ${{ github.token }}
           submodules: recursive
 
       - name: Login to GHCR
