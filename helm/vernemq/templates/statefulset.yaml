@@ -20,6 +20,9 @@ spec:
   podManagementPolicy: {{ .Values.statefulset.podManagementPolicy }}
   updateStrategy:
     type: {{ .Values.statefulset.updateStrategy }}
+    {{- with .Values.statefulset.rollingUpdate }}
+    rollingUpdate: {{- toYaml . | nindent 6 }}
+    {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "vernemq.name" . }}
@@ -67,7 +70,7 @@ spec:
             {{- if .Values.headlessService.customPorts }}
             {{- range .Values.headlessService.customPorts }}
             - containerPort: {{ .port }}
-            name: {{ .name }}
+              name: {{ .name }}
             {{- end }}
             {{- end }}
             {{- range tuple 9100 9101 9102 9103 9104 9105 9106 9107 9108 9109 }}
@@ -114,7 +117,7 @@ spec:
             {{ toYaml .Values.resources | nindent 12 }}
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/ping
               port: api
               scheme: HTTP
             initialDelaySeconds: {{ .Values.statefulset.livenessProbe.initialDelaySeconds }}
@@ -124,7 +127,7 @@ spec:
             failureThreshold: {{ .Values.statefulset.livenessProbe.failureThreshold }}
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ping
               port: api
               scheme: HTTP
             initialDelaySeconds: {{ .Values.statefulset.readinessProbe.initialDelaySeconds }}
@@ -245,5 +248,5 @@ spec:
       {{- end }}
       {{- end }}
 {{- else }}
-        - name: data
+      - name: data
 {{- end }}
