@@ -11,7 +11,7 @@
 # your own risk.
 
 ARG REPO=851725524691.dkr.ecr.us-east-2.amazonaws.com
-ARG VERNEMQ_VERSION_ARG="2.0.1"
+ARG VERNEMQ_VERSION_ARG="2.1.0"
 
 ## BUILDER ##
 FROM ${REPO}/erlang:26-slim AS builder
