@@ -6,7 +6,7 @@ on:
       - 2.0.1
       - 2.1.0
       - 2.1.1
-      - 2.1.1+alpine-3.22
+      - 2.1.1-alpine-3.22
 
 permissions:
   contents: read
