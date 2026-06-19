@@ -12,15 +12,18 @@
 
 ARG REPO=851725524691.dkr.ecr.us-east-2.amazonaws.com
 ARG VERNEMQ_VERSION_ARG="2.1.1"
+ARG ERLANG_VERSION_ARG="26.2.5.21-alpine"
+# This should match alpine version erlang image is built on
+ARG ALPINE_TAG_ARG="3.22"
 
 ## BUILDER ##
-FROM ${REPO}/erlang:26-slim AS builder
+FROM ${REPO}/erlang:${ERLANG_VERSION_ARG} AS builder
 
 ARG VERNEMQ_VERSION_ARG
 
-RUN apt-get update && \
-    apt-get install -y build-essential libsnappy-dev libssl-dev git && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk --no-cache --update --available upgrade && \
+    apk add --no-cache \
+    bsd-compat-headers build-base git libstdc++ openssl-dev snappy-dev
 
 RUN git clone --depth=1 https://github.com/vernemq/vernemq.git --branch ${VERNEMQ_VERSION_ARG} && \
     cd vernemq && \
@@ -28,15 +31,15 @@ RUN git clone --depth=1 https://github.com/vernemq/vernemq.git --branch ${VERNEM
 
 
 ## RUNTIME ##
-FROM ${REPO}/debian:bookworm-slim
+FROM ${REPO}/alpine:${ALPINE_TAG_ARG}
 
 ARG VERNEMQ_VERSION_ARG
 
-RUN apt-get update && \
-    apt-get -y install bash procps openssl iproute2 curl jq libsnappy-dev net-tools nano && \
-    rm -rf /var/lib/apt/lists/* && \
+RUN apk --no-cache --update --available upgrade && \
+    apk add --no-cache ncurses-libs libstdc++ jq curl bash snappy-dev nano && \
     addgroup --gid 10000 vernemq && \
-    adduser --uid 10000 --system --ingroup vernemq --home /vernemq --disabled-password vernemq
+    adduser --uid 10000 -H -D -G vernemq -h /vernemq vernemq && \
+    install -d -o vernemq -g vernemq /vernemq
 
 WORKDIR /vernemq
 
